@@ -20,12 +20,18 @@ def review():
     # 검증 필요한 열들 플랫폼에 검증 요청
     excel_item,excel_rows = __parse_excel(excel_file)
 
+    # 플랫폼에 최초 1회 호출하는 API
+    # 검증 대상 조회 세션에 문제가 생길 시 최종 response 값으로 {"review start": false} 전달
+    start_check=__review_start_from_platform(excel_item)
+    if start_check['start_check']==False:
+      response = { "review start" : False }
+      return json.dumps(response)
+
     # 플랫폼에서 검증된 열들의 결과값 저장
     review_results = []
     for row in excel_rows:
-        validate_result = __request_part_to_platform(row)
-        json_object = json.loads(validate_result)
-        review_results.append(json_object['verification'])
+        validate_result = __request_part_to_platform(excel_item[0][1],row)
+        review_results.append(validate_result['valid'])
 
     # 검증된 열들의 결과값을 종합 처리후 응답
     passvalidate_results=[]
@@ -51,36 +57,6 @@ def review():
 
     # response = review_results
     # 응답 예시
-
-    # response = {
-    #     "partNo": "LM2576HVSX-ADJ/NOPB",
-    #     "type": "step_down",
-    #     "manufacturer_name": "TI",
-    #     "passReview": False,
-    #     "reviewResults": [
-    #         {
-    #             "partName": "oprating_temperature_min",
-    #             "designValue": -20,
-    #             "verification": True,
-    #         },
-    #         {
-    #             "partName": "oprating_temperature_max",
-    #             "designValue": 100,
-    #             "verification": False,
-    #         },
-    #         {
-    #             "partName": "storage_temperature_min",
-    #             "designValue": -45,
-    #             "verification": True,
-    #         },
-    #         {
-    #             "partName": "storage_temperature_max",
-    #             "designValue": 110,
-    #             "verification": False,
-    #         }
-    #     ]
-    # }
-
     # return response = {
     #     "partNo": "LM2576HVSX-ADJ/NOPB",
     #     "type": "step_down",
@@ -134,8 +110,35 @@ def __parse_excel(excel_file):
               excel_rows.append(cols)
     return item,excel_rows
 
+def __review_start_from_platform(excel_item):
 
-def __request_part_to_platform(parsed_row):
+    get_url= "http://kws7.kangnam.ac.kr/review/target"
+    data = {'parNo': excel_item[0][1]}
+    validTarget_response=requests.get(get_url, params=data)
+    validTarget=validTarget_response.json()
+  
+    # dockerized url
+    url = "http://platform/review/start"
+
+    # local url
+    # url = "http://localhost:8080/review/start"
+    headers = {'Content-Type': 'application/json'}
+    example_body = {
+        "validTarget" : validTarget['validTarget'],
+        "partNo": excel_item[0][1]
+    }
+
+    # body = parsed_row
+    body = json.dumps(example_body)
+
+    # response 예시
+    # {'start_check' : true}
+
+    response = requests.post(url, data=body, headers=headers)
+    return json.loads(response.json())
+
+
+def __request_part_to_platform(partNo,parsed_row):
     # dockerized url
     url = "http://platform/review/part"
 
@@ -143,21 +146,16 @@ def __request_part_to_platform(parsed_row):
     # url = "http://localhost:8080/review/part"
     headers = {'Content-Type': 'application/json'}
     example_body = {
-        "partName": parsed_row[0],
+        "partNo": partNo,
+        "verificationTarget": parsed_row[0],
         "designValue": parsed_row[1]
     }
 
     # body = parsed_row
-    body = example_body
+    body = json.dumps(example_body)
 
-    response = requests.post(url, json=body, headers=headers)
-    return response.get_json()
-
-    # response 응답 예시
-    # response = {
-    #    "verification": true
-    # }
-
+    response = requests.post(url, data=body, headers=headers)
+    return json.loads(response.json())
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001)
