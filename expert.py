@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, make_response
 from flask import request
 import json
 import requests
@@ -58,26 +58,35 @@ def review():
         if validate_result['valid'] is not None:
             review_results.append(validate_result['valid'])
 
+    print("-----Review Result-----")
+    print(review_results)
     # Todo: refactor
     # 검증된 열들의 결과값을 종합 처리후 응답
     passvalidate_results = []
     result = True
     for verification, excel_row in zip(review_results, parsed_rows):
-        if verification == False:
+        print("-----verification-----")
+        print(verification)
+
+        print("-----Excel row -----")
+        print(excel_row)
+        if not verification:
             result = False
         passvalidate_result = {
-            "partName": excel_row[0],
-            "designValue": excel_row[1],
+            "partName": excel_row["partName"],
+            "designValue": excel_row["designValue"],
             "verification": verification,
         }
         passvalidate_results.append(passvalidate_result)
 
+    print("-----Validate Result-----")
+    print(passvalidate_results)
     response = {
-        header_rows[0][VERIFICATION_TARGET_CELL_INDEX]: header_rows[0][DESIGN_VALUE_CELL_INDEX],
         # "partNo": "LM2576HVSX-ADJ/NOPB"
+        header_rows[0][VERIFICATION_TARGET_CELL_INDEX]: header_rows[0][DESIGN_VALUE_CELL_INDEX],
         # header_rows[1][0]: header_rows[1][DESIGN_VALUE_CELL_INDEX], # "type": "step_down" ### 엑셀 항목이 비어있어서 추후에 처리
-        header_rows[2][VERIFICATION_TARGET_CELL_INDEX]: header_rows[2][DESIGN_VALUE_CELL_INDEX],
         # "manufacturer_name": "TI"
+        header_rows[2][VERIFICATION_TARGET_CELL_INDEX]: header_rows[2][DESIGN_VALUE_CELL_INDEX],
         "passReview": result,
         "reviewResults": passvalidate_results
     }
@@ -112,8 +121,16 @@ def review():
     #         }
     #     ]
     # }
+    print("-----Response Result-----")
+    print(response)
+    content_type = 'application/json'  # Specify the content type
+    res = make_response(json.dumps(response))
+    res.headers['Content-Type'] = content_type  # Set the content type
 
-    return json.dumps(response)
+    print("-----Response Res-----")
+    print(res)
+    return res
+    # return json.dumps(response)
 
 
 def __parse_excel(excel_file):
