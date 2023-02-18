@@ -45,8 +45,8 @@ def review():
     # Todo: refactor
     if not start_check['start_check']:
         # response = {"review start": False} # key에 공백이 들어가면 안됩니다.
-        response = {"review_start": False}
-        return json.dumps(response)
+        response = make_response(json.dumps({"review_start": False}))
+        return response
 
     # 플랫폼에서 검증된 열들의 결과값 저장
     review_results = []
@@ -58,36 +58,28 @@ def review():
         if validate_result['valid'] is not None:
             review_results.append(validate_result['valid'])
 
-    print("-----Review Result-----")
-    print(review_results)
     # Todo: refactor
     # 검증된 열들의 결과값을 종합 처리후 응답
     passvalidate_results = []
-    result = True
+    verification_result = True
     for verification, excel_row in zip(review_results, parsed_rows):
-        print("-----verification-----")
-        print(verification)
 
-        print("-----Excel row -----")
-        print(excel_row)
         if not verification:
-            result = False
-        passvalidate_result = {
+            verification_result = False
+        pass_validate_result = {
             "partName": excel_row["partName"],
             "designValue": excel_row["designValue"],
             "verification": verification,
         }
-        passvalidate_results.append(passvalidate_result)
+        passvalidate_results.append(pass_validate_result)
 
-    print("-----Validate Result-----")
-    print(passvalidate_results)
     response = {
         # "partNo": "LM2576HVSX-ADJ/NOPB"
         header_rows[0][VERIFICATION_TARGET_CELL_INDEX]: header_rows[0][DESIGN_VALUE_CELL_INDEX],
         # header_rows[1][0]: header_rows[1][DESIGN_VALUE_CELL_INDEX], # "type": "step_down" ### 엑셀 항목이 비어있어서 추후에 처리
         # "manufacturer_name": "TI"
         header_rows[2][VERIFICATION_TARGET_CELL_INDEX]: header_rows[2][DESIGN_VALUE_CELL_INDEX],
-        "passReview": result,
+        "passReview": verification_result,
         "reviewResults": passvalidate_results
     }
 
@@ -121,16 +113,10 @@ def review():
     #         }
     #     ]
     # }
-    print("-----Response Result-----")
-    print(response)
-    content_type = 'application/json'  # Specify the content type
-    res = make_response(json.dumps(response))
-    res.headers['Content-Type'] = content_type  # Set the content type
 
-    print("-----Response Res-----")
-    print(res)
-    return res
-    # return json.dumps(response)
+    response = make_response(json.dumps(response))
+    response.headers['Content-Type'] = 'application/json'
+    return response
 
 
 def __parse_excel(excel_file):
@@ -199,7 +185,6 @@ def __request_part_to_platform(part_no, verification_target, design_value):
     # response 예시
     # {'verificationTarget': 'oprating_temperature_max', 'valid': true'}
     response = requests.post(url, data=body, headers=headers).json()
-    print("__request_part_to_platform API: ", response)
     return response
 
 
