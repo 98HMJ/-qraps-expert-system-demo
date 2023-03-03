@@ -1,11 +1,8 @@
 from flask import Flask, make_response
 from flask import request
+import openpyxl
 import json
 import requests
-import openpyxl
-from datetime import datetime
-
-from openpyxl.utils.cell import coordinate_from_string
 
 MAX_HEADER_ROWS_COUNT = 4
 VERIFICATION_TARGET_CELL_INDEX = 0
@@ -28,6 +25,9 @@ def review():
     # 검증 대상. ex) "IC", "Transistor", "Diode"
     target_type = request.args.get('validTarget')
 
+    # 플랫폼 백엔드에서 생성한 세션 ID
+    session_id = request.args.get('sessionId')
+
     # 검증 대상 partNo. ex) "LM2576HVSX-ADJ/NOPB"
     # target_part_no = request.args.get('partNo')
 
@@ -40,7 +40,8 @@ def review():
 
     # 플랫폼에 최초 1회 호출하는 API
     # 검증 대상 조회 세션에 문제가 생길 시 최종 response 값으로 {"review_start": false} 전달
-    start_check = __review_start_from_platform(valid_target=target_type, target_part_no=target_part_no)
+    start_check = __review_start_from_platform(valid_target=target_type, target_part_no=target_part_no,
+                                               session_id=session_id)
 
     # Todo: refactor
     if not start_check['start_check']:
@@ -53,8 +54,10 @@ def review():
     for row in parsed_rows:
         verification_target = row['partName']  # 검증 항목 cell
         design_value = row['designValue']  # 설계 값 cell
+        print(row['partName'])
+        print(design_value)
         validate_result = __request_part_to_platform(part_no=target_part_no, verification_target=verification_target,
-                                                     design_value=design_value)
+                                                     design_value=design_value, session_id=session_id)
         if validate_result['valid'] is not None:
             review_results.append(validate_result['valid'])
 
@@ -113,6 +116,7 @@ def review():
     #         }
     #     ]
     # }
+    print(response)
 
     response = make_response(json.dumps(response))
     response.headers['Content-Type'] = 'application/json'
@@ -150,7 +154,7 @@ def __parse_excel(excel_file):
     return header_rows, parsed_rows
 
 
-def __review_start_from_platform(valid_target, target_part_no):
+def __review_start_from_platform(valid_target, target_part_no, session_id):
     data = {'validTarget': valid_target, 'partNo': target_part_no}
 
     # dockerized url
@@ -158,21 +162,26 @@ def __review_start_from_platform(valid_target, target_part_no):
 
     # local url
     url = "http://localhost:8080/review/start"
+    # url = "http://localhost:80/review/start"
     headers = {'Content-Type': 'application/json'}
     body = json.dumps(data)
+    params = {'sessionId': session_id}  # URL 쿼리 파라미터
 
     # response 예시
     # {'start_check' : true}
-    response = requests.post(url, data=body, headers=headers).json()
+    print("review start")
+    print(body)
+    response = requests.post(url, data=body, headers=headers, params=params).json()
     return response
 
 
-def __request_part_to_platform(part_no, verification_target, design_value):
+def __request_part_to_platform(part_no, verification_target, design_value, session_id):
     # dockerized url
     # url = "http://platform/review/part"
 
     # local url
     url = "http://localhost:8080/review/part"
+    # url = "http://localhost:80/review/part"
     headers = {'Content-Type': 'application/json'}
 
     # body = parsed_row
@@ -181,12 +190,14 @@ def __request_part_to_platform(part_no, verification_target, design_value):
         "verificationTarget": verification_target,
         "designValue": design_value
     })
+    params = {'sessionId': session_id}  # URL 쿼리 파라미터
 
     # response 예시
     # {'verificationTarget': 'oprating_temperature_max', 'valid': true'}
-    response = requests.post(url, data=body, headers=headers).json()
+    response = requests.post(url, data=body, headers=headers, params=params).json()
+    print(response)
     return response
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001)
+    app.run(host="0.0.0.0", debug=False, port=5000)
